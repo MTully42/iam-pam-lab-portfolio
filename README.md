@@ -8,7 +8,7 @@ Built to demonstrate production-relevant IAM/PAM skills for identity governance,
 
 | # | Lab | Platform | Outcome |
 |---|-----|----------|---------|
-| 01 | [Entra ID Hybrid Identity](./01-entra-id-hybrid-identity) | Microsoft Entra ID | Built hybrid identity environment across 30+ users with dynamic group membership and licensing |
+| 01 | [Entra ID Hybrid Identity](./01-entra-id-hybrid-identity) | Microsoft Entra ID | Built hybrid identity environment across 30+ users with dynamic group membership, group-based licensing, a 10-role RBAC matrix with custom role, PIM just-in-time privileged access, and SAML/JWT claims inspection |
 | 02 | [Conditional Access Policies](./02-conditional-access-policies) | Microsoft Entra ID | Deployed 4 CA policies (MFA, legacy auth block, admin protection, risk-based sign-in) with break-glass SOP |
 | 03 | [Entra RBAC & PIM](./03-entra-rbac-pim) | Microsoft Entra ID | Designed 5-role RBAC matrix, custom roles, and PIM for JIT privileged access |
 | 04 | [Saviynt IGA Onboarding](./04-saviynt-iga-onboarding) | Saviynt | Configured IGA identity repository, source connectors, and entitlement imports |
