@@ -8,7 +8,7 @@ This lab builds a layered Conditional Access posture in Microsoft Entra ID: a do
 **Tools used:** Microsoft Entra admin center (Conditional Access, Identity Protection, Sign-in logs), Microsoft Authenticator
 **AI-assisted workflow:** Used Claude throughout to plan the policy build sequence, review exclusion lists for misconfigurations before finalizing each policy, validate test results against sign-in logs, and structure this documentation.
 
-**Status:** Modules 1 through 5 complete, enforced, and verified against sign-in logs — all four Conditional Access policies (CA01–CA04) are On. Modules 6 (cross-policy testing/What-If validation) and 7 (consolidated sign-in log analysis) are planned — this repo reflects the tenant's actual current state, not a finished end state.
+**Status:** Modules 1 through 6 complete. All four Conditional Access policies (CA01–CA04) are On; CA01, CA03, and CA04 are verified enforcing against sign-in logs. CA02 is inactive while the tenant is on Entra ID P1 (see Finding 4). Module 7 (consolidated sign-in log analysis) is planned — this repo reflects the tenant's actual current state, not a finished end state.
 
 ---
 
@@ -166,13 +166,56 @@ Built `CA02 - Risk_Based Sign-In Block`, requiring Entra ID P2 (Identity Protect
 
 **Skill demonstrated:** Understanding the security-defaults-vs-Conditional-Access relationship in Entra ID (not just clicking through an error); applying the same exclusion-review discipline consistently across multiple policies rather than treating the Module 2 finding as a one-off.
 
+**Status update (2026-11-04):** CA02 depends on Microsoft Entra ID Protection sign-in risk, a P2 feature. After the P2 trial ended and the tenant moved to P1, CA02 still shows On but cannot evaluate sign-in risk. See Module 6 and Finding 4.
+
+---
+
+### Module 6: Cross-Policy Testing & Validation
+
+Tested all four policies together using the Conditional Access **What If** tool, then confirmed key results with a real sign-in. Every What If test used the same target app (Office 365 Exchange Online) and device platform (Windows), changing **one variable at a time**, so each result can be attributed to that variable.
+
+| # | Scenario | Expected | Result |
+|---|---|---|---|
+| 1 | Standard user (Alyssa), browser | CA01 only | ✅ CA01 applies. CA02 skipped (sign-in risk), CA03 skipped (client app), CA04 skipped (users and groups) |
+| 2 | Standard user, **legacy client** ("Other clients": IMAP/POP/SMTP) | CA03 Block | ✅ CA01 + **CA03 Block access** apply. Only the client app changed from Test 1. |
+| 3 | **Admin** (Global Administrator), browser | CA01 + CA04 | ✅ CA01 + **CA04** (with 4-hour sign-in frequency) apply. Only the user changed from Test 1. |
+| 4 | Standard user, **sign-in risk: High** | CA02 | ⚠️ **Could not run.** What If offers no sign-in risk field without P2. This led to Finding 4. |
+| 5 | **Break-glass account**, browser | Nothing | ✅ 0 policies apply. All four skipped for "Users and groups" (excluded). |
+| B | **Real sign-in**, standard user (Alyssa) | CA01 Success, CA04 Not Applied | ✅ CA01 Success (MFA enforced); CA04 Not Applied, **User: Not matched**; CA02, CA03 Not Applied |
+
+**Side result:** Test 2 also closed an open question about CA01. Its summary page reads "Client apps: 1 included," but CA01 applied to a legacy client in What If, which confirms it covers all client types. "1 included" is how the summary page displays an unconfigured client-app condition.
+
+**Testing approach notes:** The original plan included the Conditional Access Insights workbook, which requires a Log Analytics workspace not configured in this tenant. Per-sign-in evaluation details in Sign-in logs were used instead, as in Modules 2–4. Following the Module 3 lesson, a test only passed if the policy appeared in the evaluation results for the expected reason. A missing policy counted as a failure, not a pass.
+
+**Evidence:**
+
+![Test 2 inputs: Alyssa Morgan, Exchange Online](./06_policy_testing_validation/02-0a_test2_inputs_user_alyssa.png)
+
+![Test 2 conditions: Windows, "Other clients" (legacy)](./06_policy_testing_validation/02-0b_test2_inputs_conditions_other_clients.png)
+
+![Test 2 result: CA03 Block access applies to the legacy client](./06_policy_testing_validation/02-1_test2_alyssa_other_clients_will_apply_ca03_block.png)
+
+![Test 3 result: CA01 and CA04 (with sign-in frequency) apply to the admin](./06_policy_testing_validation/03-1_test3_admin_browser_will_apply_ca01_ca04.png)
+
+![Test 5 result: break-glass account — 0 policies apply](./06_policy_testing_validation/05-1_test5_breakglass_will_apply_none.png)
+
+![Test 5: all four policies skipped for "Users and groups" (excluded)](./06_policy_testing_validation/05-2_test5_breakglass_will_not_apply_all_excluded.png)
+
+![Real sign-in (Alyssa): CA01 Success; CA02, CA03, CA04 Not Applied](./06_policy_testing_validation/06-1_alyssa_real_signin_ca_tab_ca01_success.png)
+
+![Real sign-in (Alyssa): CA04 evaluation — User Not matched](./06_policy_testing_validation/06-2_alyssa_real_signin_ca04_user_not_matched.png)
+
+All 17 test screenshots (inputs and both result tabs for each test) are in [`06_policy_testing_validation/`](./06_policy_testing_validation/). Finding 4 writeup: [`ca02-risk-policy-inactive-without-p2.md`](./06_policy_testing_validation/ca02-risk-policy-inactive-without-p2.md) ([.docx version](./06_policy_testing_validation/ca02-risk-policy-inactive-without-p2.docx)).
+
+**Skill demonstrated:** Designing a controlled test matrix (one variable per test) that proves each policy applies to who it should *and* skips who it shouldn't; confirming simulation results with a real sign-in; and treating a test that couldn't run as evidence to investigate rather than a step to skip.
+
 ---
 
 ## Findings Report — NIST 800-53 Control Mapping
 
 **Environment:** iampamprointheknow42gmail.onmicrosoft.com (Entra ID tenant)
 **Scope:** Conditional Access — MFA enforcement, risk-based sign-in, legacy authentication block, break-glass SOP
-**Date:** August 25, 2026 (Finding 3 added November 3, 2026)
+**Date:** August 25, 2026 (Finding 3 added November 3, 2026; Finding 4 added November 4, 2026)
 
 ---
 
@@ -194,6 +237,12 @@ Both break-glass emergency access accounts have a Microsoft Authenticator method
 
 `CA03 - Block Legacy Authentication` was deployed with no target resources, so it matched no sign-ins and left legacy-protocol access (which can't perform MFA) unblocked from 2026-08-31 to 2026-11-03 while reporting a state of On. The defect was visible in the original build screenshot and in a Report-only test result that was misread at the time. Found during a configuration audit, confirmed in sign-in log evaluation details, remediated through Report-only, verified with a fresh sign-in, and re-enforced the same day. Full technical writeup, business impact, and remediation steps: [`ca03-legacy-auth-policy-enforced-nothing.md`](./03_legacy_auth_block_policy/ca03-legacy-auth-policy-enforced-nothing.md).
 
+**Finding 4 — Risk-based sign-in policy inactive after Entra ID P2 license lapse**
+*Control: NIST 800-53 SI-4 (System Monitoring), CA-7 (Continuous Monitoring), CM-3 (Configuration Change Control)*
+*Risk Rating: Medium (compensated by CA01's universal MFA requirement; would be High in a tenant without it)*
+
+`CA02 - Risk_Based Sign-In Block` relies on ID Protection sign-in risk, which requires Entra ID P2. After the P2 trial ended, CA02 continued to show On but could no longer evaluate sign-in risk: What If offers no risk field, and the policy's sign-in log evaluation shows no sign-in risk condition. A licensing change disabled a security control with no change to the control and no warning on the policy. Two design issues were also noted: the policy is named "Block" but grants Require MFA, and without sign-in frequency "Every time" it adds no challenge to a session that already completed MFA under CA01. P2 was not restored for the lab; CA02 was validated with P2 in Module 5. Full writeup: [`ca02-risk-policy-inactive-without-p2.md`](./06_policy_testing_validation/ca02-risk-policy-inactive-without-p2.md).
+
 ---
 
 ## Skills Summary
@@ -204,12 +253,12 @@ Both break-glass emergency access accounts have a Microsoft Authenticator method
 | Conditional Access | Tenant-wide MFA enforcement, legacy auth blocking, privileged-role protection with sign-in frequency, risk-based sign-in blocking, report-only → enforced lifecycle |
 | Identity Protection | Sign-in risk conditions, security-defaults-to-custom-CA migration |
 | Quality Assurance | Caught and remediated a real privileged-access misconfiguration on two separate policies through disciplined exclusion-list review; audited a deployed policy and found it enforced nothing |
-| Validation | Sign-in log-based testing methodology (substituted for the Insights workbook, which requires Log Analytics not yet configured) |
-| Compliance | NIST 800-53 control mapping across three findings (two substantive, one informational/documented trade-off) |
+| Validation | What If test matrix across all four policies (one variable per test), confirmed with real sign-ins; per-policy sign-in log evaluation details (substituted for the Insights workbook, which requires Log Analytics not yet configured) |
+| Compliance | NIST 800-53 control mapping across four findings (three substantive, one informational/documented trade-off) |
 | AI-augmented workflow | Used Claude for policy build guidance, exclusion-list review, test validation, and documentation throughout |
 
 ---
 
 ## Notes
 
-This is a working lab in an active trial tenant — screenshots reflect the actual build process, including the admin-exclusion misconfiguration found and fixed on two separate policies, and the Insights-workbook-to-Sign-in-logs substitution made when the planned validation path wasn't available. Left them in deliberately: catching your own mistakes before they ship, and knowing when a documented substitute approach is valid, is part of the job. Module 3 adds a second lesson: a Report-only test where the policy doesn't appear in the results at all is a failed test, not a clean one. Every remaining module now requires the policy to show up in sign-in evaluation results before it counts as verified. Modules 6 and 7 are next.
+This is a working lab in an active trial tenant — screenshots reflect the actual build process, including the admin-exclusion misconfiguration found and fixed on two separate policies, and the Insights-workbook-to-Sign-in-logs substitution made when the planned validation path wasn't available. Left them in deliberately: catching your own mistakes before they ship, and knowing when a documented substitute approach is valid, is part of the job. Module 3 adds a second lesson: a Report-only test where the policy doesn't appear in the results at all is a failed test, not a clean one. Every remaining module now requires the policy to show up in sign-in evaluation results before it counts as verified. Module 6 found a second policy that showed On while protecting nothing — this time because of a license lapse, not a configuration error. Module 7 is next.
