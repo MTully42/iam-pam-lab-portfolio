@@ -1,4 +1,4 @@
-# Lab 02: Conditional Access — MFA, Risk-Based Sign-In, Legacy Auth Block, and Break-Glass SOP
+# Lab 02: Conditional Access — MFA, Risk-Based Sign-In, Legacy Auth Block, Admin Role Protection, and Break-Glass SOP
 
 ## Overview
 
@@ -8,7 +8,7 @@ This lab builds a layered Conditional Access posture in Microsoft Entra ID: a do
 **Tools used:** Microsoft Entra admin center (Conditional Access, Identity Protection, Sign-in logs), Microsoft Authenticator
 **AI-assisted workflow:** Used Claude throughout to plan the policy build sequence, review exclusion lists for misconfigurations before finalizing each policy, validate test results against sign-in logs, and structure this documentation.
 
-**Status:** Modules 1, 2, 3, and 5 complete and enforced. Module 4 (Admin Role Protection) is built and in Report-only, pending validation. Modules 6 (cross-policy testing/What-If validation) and 7 (consolidated sign-in log analysis) are planned — this repo reflects the tenant's actual current state, not a finished end state.
+**Status:** Modules 1 through 5 complete, enforced, and verified against sign-in logs — all four Conditional Access policies (CA01–CA04) are On. Modules 6 (cross-policy testing/What-If validation) and 7 (consolidated sign-in log analysis) are planned — this repo reflects the tenant's actual current state, not a finished end state.
 
 ---
 
@@ -104,6 +104,44 @@ All 15 screenshots, plus the original August build evidence, are in [`03_legacy_
 
 ---
 
+### Module 4: Admin Role Protection (CA04)
+
+Built `CA04 - Protect Privileged Roles`: Include the three directory roles that can take over or reconfigure the tenant — **Global Administrator, Privileged Role Administrator, and Security Administrator** — exclude both break-glass accounts, target all resources, grant control **Require multifactor authentication**, session control **Sign-in frequency: every 4 hours**. Created 2026-08-31 in Report-only; audited, validated, and enforced 2026-11-04.
+
+**Audit:** Every tab was checked against the design before enforcement, applying the lesson from Module 3. Target resources was set to All resources (an August build screenshot taken mid-creation showed "No target resources selected," but it was set before the policy was saved). Exclusions are limited to the two break-glass accounts.
+
+**Validation:** CA04 ran in Report-only from 2026-08-31, so it was evaluated on every sign-in. The per-policy evaluation detail on a Global Administrator sign-in showed **User: Matched** (via role), **Resource: Matched**, **Grant: Satisfied**, **Session: Enforced**, and **Result: Report-only: Success** — meaning enforcement would allow a properly authenticated admin rather than lock them out. After enforcement, the next admin sign-in shows CA04 **Success** with sign-in frequency applied, alongside CA01 Success and CA02/CA03 correctly Not Applied.
+
+**Design decisions:**
+- **No compliant-device requirement.** The original build plan called for Require MFA + Require compliant device. This tenant is cloud-only with no Intune and no registered devices, so that control could never be satisfied — enforcing it would have locked out every admin except the break-glass accounts. MFA plus a 4-hour sign-in frequency is the strongest control this tenant can actually honor. Device compliance (or phishing-resistant authentication strength) is the next step once device management exists.
+- **Admin stays in scope.** When enabling the policy, the Entra portal pre-selects **"Exclude current user"** in its lockout warning. That default was declined in favor of "I understand that my account will be impacted" — accepting it would have silently recreated the standing-admin exclusion found in Module 2.
+
+**Evidence:**
+
+![CA04 policy summary: 3 roles, All resources, Require MFA + Sign-in frequency, 2 break-glass exclusions](./04_admin_role_protection_policy/00-1_policy_details_summary.png)
+
+![Directory roles included — Global Administrator](./04_admin_role_protection_policy/01-1b_roles_global_administrator.png)
+
+![Directory roles included — Privileged Role Administrator and Security Administrator](./04_admin_role_protection_policy/01-1c_roles_privileged_role_and_security_admin.png)
+
+![Exclusions limited to the two break-glass accounts](./04_admin_role_protection_policy/01-2_users_excluded_breakglass_only.png)
+
+![Grant control: Require multifactor authentication](./04_admin_role_protection_policy/03-1_grant_require_mfa.png)
+
+![Session control: Sign-in frequency every 4 hours](./04_admin_role_protection_policy/03-2_session_signin_frequency_4h.png)
+
+![Report-only validation: User Matched, Resource Matched, Grant Satisfied, Session Enforced — Report-only: Success](./04_admin_role_protection_policy/04-1_signin_1820_ca04_reportonly_success_REDACTED.png)
+
+![All four policies On](./04_admin_role_protection_policy/05-2_all_four_policies_on.png)
+
+![Post-enforcement sign-in: CA01 and CA04 Success, CA02 and CA03 correctly Not Applied](./04_admin_role_protection_policy/06-1_signin_1104_all_four_policies_enforced.png)
+
+All screenshots are in [`04_admin_role_protection_policy/`](./04_admin_role_protection_policy/).
+
+**Skill demonstrated:** Scoping a policy to privileged directory roles rather than named users; adapting a build plan to what the environment can actually enforce instead of deploying an unsatisfiable control; validating with per-policy evaluation detail before enforcement; and recognizing a portal default that would have reintroduced a known finding.
+
+---
+
 ### Module 5: Risk-Based Sign-In Block (CA02)
 
 Built `CA02 - Risk_Based Sign-In Block`, requiring Entra ID P2 (Identity Protection). Include all users, exclude break-glass accounts, condition on sign-in risk level (High), grant control Require Multifactor Authentication.
@@ -163,7 +201,7 @@ Both break-glass emergency access accounts have a Microsoft Authenticator method
 | Area | Demonstrated |
 |---|---|
 | Emergency Access | Break-glass SOP — permanent (non-PIM) admin assignment, CA-exclusion by design, sign-in monitoring |
-| Conditional Access | Tenant-wide MFA enforcement, risk-based sign-in blocking, report-only → enforced lifecycle |
+| Conditional Access | Tenant-wide MFA enforcement, legacy auth blocking, privileged-role protection with sign-in frequency, risk-based sign-in blocking, report-only → enforced lifecycle |
 | Identity Protection | Sign-in risk conditions, security-defaults-to-custom-CA migration |
 | Quality Assurance | Caught and remediated a real privileged-access misconfiguration on two separate policies through disciplined exclusion-list review; audited a deployed policy and found it enforced nothing |
 | Validation | Sign-in log-based testing methodology (substituted for the Insights workbook, which requires Log Analytics not yet configured) |
@@ -174,4 +212,4 @@ Both break-glass emergency access accounts have a Microsoft Authenticator method
 
 ## Notes
 
-This is a working lab in an active trial tenant — screenshots reflect the actual build process, including the admin-exclusion misconfiguration found and fixed on two separate policies, and the Insights-workbook-to-Sign-in-logs substitution made when the planned validation path wasn't available. Left them in deliberately: catching your own mistakes before they ship, and knowing when a documented substitute approach is valid, is part of the job. Module 3 adds a second lesson: a Report-only test where the policy doesn't appear in the results at all is a failed test, not a clean one. Every remaining module now requires the policy to show up in sign-in evaluation results before it counts as verified. Modules 4, 6, and 7 are next.
+This is a working lab in an active trial tenant — screenshots reflect the actual build process, including the admin-exclusion misconfiguration found and fixed on two separate policies, and the Insights-workbook-to-Sign-in-logs substitution made when the planned validation path wasn't available. Left them in deliberately: catching your own mistakes before they ship, and knowing when a documented substitute approach is valid, is part of the job. Module 3 adds a second lesson: a Report-only test where the policy doesn't appear in the results at all is a failed test, not a clean one. Every remaining module now requires the policy to show up in sign-in evaluation results before it counts as verified. Modules 6 and 7 are next.
