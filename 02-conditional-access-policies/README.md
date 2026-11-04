@@ -1,14 +1,14 @@
-# Lab 02: Conditional Access — MFA, Risk-Based Sign-In, and Break-Glass SOP
+# Lab 02: Conditional Access — MFA, Risk-Based Sign-In, Legacy Auth Block, and Break-Glass SOP
 
 ## Overview
 
 This lab builds a layered Conditional Access posture in Microsoft Entra ID: a documented break-glass emergency-access SOP, a tenant-wide MFA enforcement policy, and a risk-based sign-in control powered by Entra ID P2 Identity Protection — each built in report-only mode first, tested against real sign-in activity, then moved to live enforcement.
 
-**Environment:** Microsoft Entra ID (P2 trial), single tenant, cloud-only (no on-prem AD sync)
+**Environment:** Microsoft Entra ID (P2 trial for Modules 1, 2 and 5; P1 trial from November 2026), single tenant, cloud-only (no on-prem AD sync)
 **Tools used:** Microsoft Entra admin center (Conditional Access, Identity Protection, Sign-in logs), Microsoft Authenticator
 **AI-assisted workflow:** Used Claude throughout to plan the policy build sequence, review exclusion lists for misconfigurations before finalizing each policy, validate test results against sign-in logs, and structure this documentation.
 
-**Status:** Modules 1, 2, and 5 complete and enforced. Modules 3 (Legacy Authentication Block), 4 (Admin Role Protection), 6 (cross-policy testing/What-If validation), and 7 (consolidated sign-in log analysis) are planned but not yet built — this repo reflects the tenant's actual current state, not a finished end state.
+**Status:** Modules 1, 2, 3, and 5 complete and enforced. Module 4 (Admin Role Protection) is built and in Report-only, pending validation. Modules 6 (cross-policy testing/What-If validation) and 7 (consolidated sign-in log analysis) are planned — this repo reflects the tenant's actual current state, not a finished end state.
 
 ---
 
@@ -76,6 +76,34 @@ Testing was done against a non-privileged test account (`alyssa.morgan@...`) rat
 
 ---
 
+### Module 3: Legacy Authentication Block (CA03)
+
+Built `CA03 - Block Legacy Authentication`: Include all users, exclude both break-glass accounts, client apps condition limited to **Exchange ActiveSync** and **Other clients** (POP, IMAP, SMTP AUTH, older Office clients), grant control **Block access**. These protocols can't perform MFA, which makes them the standard route for password spray against Microsoft 365.
+
+**What happened:** The policy was built on 2026-08-31 and switched On. A configuration audit on 2026-11-03 found that **Target resources had never been set**. A Conditional Access policy with no target resources never matches a sign-in, so CA03 reported "On" for 64 days while enforcing nothing. Sign-in log evaluation details confirmed it: the policy stopped at the resource check (**Resource: Not matched**) and never reached the client app condition.
+
+The August build evidence had already captured the problem. The creation screenshot shows "Included resources: No resources," and the August Report-only test showed CA03 absent from the results entirely. That absence was read as "no legacy authentication detected" when it was the symptom. The fix was to set Target resources to **All resources**, stage in Report-only, confirm a fresh sign-in now passes the resource check and is decided on client app, then return to On. Full finding writeup: [`ca03-legacy-auth-policy-enforced-nothing.md`](./03_legacy_auth_block_policy/ca03-legacy-auth-policy-enforced-nothing.md) ([.docx version](./03_legacy_auth_block_policy/ca03-legacy-auth-policy-enforced-nothing.docx)).
+
+**Evidence:**
+
+![Finding: Target resources set to None](./03_legacy_auth_block_policy/01-3_FINDING_target_resources_none.png)
+
+![Policy summary: State On, Included resources: No resources](./03_legacy_auth_block_policy/03-1_policy_details_block_access_no_resources.png)
+
+![Pre-fix sign-in log: CA03 evaluation stopped at Resource — Not matched](./03_legacy_auth_block_policy/06-0b_FINDING_signin_1738_resource_not_matched.png)
+
+![After fix: Included resources = All resources, staged in Report-only](./03_legacy_auth_block_policy/05-3_policy_details_all_resources_report_only.png)
+
+![Post-fix sign-in log: Resource Matched, Client app (Browser) Not matched — policy now fully evaluated](./03_legacy_auth_block_policy/06-1_signin_1820_resource_matched_clientapp_not_matched_REDACTED.png)
+
+![CA03 returned to On](./03_legacy_auth_block_policy/07-1_ca03_enforced_on.png)
+
+All 15 screenshots, plus the original August build evidence, are in [`03_legacy_auth_block_policy/`](./03_legacy_auth_block_policy/).
+
+**Skill demonstrated:** Auditing a deployed control instead of trusting its status column; using per-policy evaluation details in sign-in logs to prove *why* a policy did or didn't apply; staging a fix through Report-only before enforcement; and owning a missed test result in the original build.
+
+---
+
 ### Module 5: Risk-Based Sign-In Block (CA02)
 
 Built `CA02 - Risk_Based Sign-In Block`, requiring Entra ID P2 (Identity Protection). Include all users, exclude break-glass accounts, condition on sign-in risk level (High), grant control Require Multifactor Authentication.
@@ -105,8 +133,8 @@ Built `CA02 - Risk_Based Sign-In Block`, requiring Entra ID P2 (Identity Protect
 ## Findings Report — NIST 800-53 Control Mapping
 
 **Environment:** iampamprointheknow42gmail.onmicrosoft.com (Entra ID tenant)
-**Scope:** Conditional Access — MFA enforcement, risk-based sign-in, break-glass SOP
-**Date:** August 25, 2026
+**Scope:** Conditional Access — MFA enforcement, risk-based sign-in, legacy authentication block, break-glass SOP
+**Date:** August 25, 2026 (Finding 3 added November 3, 2026)
 
 ---
 
@@ -122,6 +150,12 @@ The tenant's primary Global Administrator account was found in the exclusion lis
 
 Both break-glass emergency access accounts have a Microsoft Authenticator method registered. This is a defense-in-depth design choice worth documenting explicitly rather than leaving implicit: it protects against credential-only compromise of the break-glass accounts, but introduces a dependency on Authenticator availability during the exact kind of outage break-glass accounts exist to survive. No change made in this pass; flagged for a deliberate decision (keep as-is with documented rationale, or remove the MFA method and rely on credential strength + monitoring alone) in a future review.
 
+**Finding 3 — Legacy authentication block policy showed "On" but enforced nothing**
+*Control: NIST 800-53 IA-2 (Identification and Authentication), CM-6 (Configuration Settings), CA-7 (Continuous Monitoring)*
+*Risk Rating: High*
+
+`CA03 - Block Legacy Authentication` was deployed with no target resources, so it matched no sign-ins and left legacy-protocol access (which can't perform MFA) unblocked from 2026-08-31 to 2026-11-03 while reporting a state of On. The defect was visible in the original build screenshot and in a Report-only test result that was misread at the time. Found during a configuration audit, confirmed in sign-in log evaluation details, remediated through Report-only, verified with a fresh sign-in, and re-enforced the same day. Full technical writeup, business impact, and remediation steps: [`ca03-legacy-auth-policy-enforced-nothing.md`](./03_legacy_auth_block_policy/ca03-legacy-auth-policy-enforced-nothing.md).
+
 ---
 
 ## Skills Summary
@@ -131,13 +165,13 @@ Both break-glass emergency access accounts have a Microsoft Authenticator method
 | Emergency Access | Break-glass SOP — permanent (non-PIM) admin assignment, CA-exclusion by design, sign-in monitoring |
 | Conditional Access | Tenant-wide MFA enforcement, risk-based sign-in blocking, report-only → enforced lifecycle |
 | Identity Protection | Sign-in risk conditions, security-defaults-to-custom-CA migration |
-| Quality Assurance | Caught and remediated a real privileged-access misconfiguration on two separate policies through disciplined exclusion-list review |
+| Quality Assurance | Caught and remediated a real privileged-access misconfiguration on two separate policies through disciplined exclusion-list review; audited a deployed policy and found it enforced nothing |
 | Validation | Sign-in log-based testing methodology (substituted for the Insights workbook, which requires Log Analytics not yet configured) |
-| Compliance | NIST 800-53 control mapping, dual-finding report (one substantive, one informational/documented trade-off) |
+| Compliance | NIST 800-53 control mapping across three findings (two substantive, one informational/documented trade-off) |
 | AI-augmented workflow | Used Claude for policy build guidance, exclusion-list review, test validation, and documentation throughout |
 
 ---
 
 ## Notes
 
-This is a working lab in an active trial tenant — screenshots reflect the actual build process, including the admin-exclusion misconfiguration found and fixed on two separate policies, and the Insights-workbook-to-Sign-in-logs substitution made when the planned validation path wasn't available. Left them in deliberately: catching your own mistakes before they ship, and knowing when a documented substitute approach is valid, is part of the job. Modules 3, 4, 6, and 7 are planned next.
+This is a working lab in an active trial tenant — screenshots reflect the actual build process, including the admin-exclusion misconfiguration found and fixed on two separate policies, and the Insights-workbook-to-Sign-in-logs substitution made when the planned validation path wasn't available. Left them in deliberately: catching your own mistakes before they ship, and knowing when a documented substitute approach is valid, is part of the job. Module 3 adds a second lesson: a Report-only test where the policy doesn't appear in the results at all is a failed test, not a clean one. Every remaining module now requires the policy to show up in sign-in evaluation results before it counts as verified. Modules 4, 6, and 7 are next.
