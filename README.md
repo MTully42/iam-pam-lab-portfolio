@@ -9,7 +9,7 @@ Built to demonstrate production-relevant IAM/PAM skills for identity governance,
 | # | Lab | Platform | Outcome |
 |---|-----|----------|---------|
 | 01 | [Entra ID Hybrid Identity](./01-entra-id-hybrid-identity) | Microsoft Entra ID | Built hybrid identity environment across 30+ users with dynamic group membership, group-based licensing, a 10-role RBAC matrix with custom role, PIM just-in-time privileged access, and SAML/JWT claims inspection |
-| 02 | [Conditional Access Policies](./02-conditional-access-policies) | Microsoft Entra ID | Deployed 4 Conditional Access policies (MFA enforcement, legacy auth block, admin role protection, risk-based sign-in) with break-glass SOP; validated with a What If test matrix and sign-in logs, uncovering two policies that showed "On" while protecting nothing (a missing scope setting and a lapsed P2 license) |
+| 02 | [Conditional Access Policies](./02-conditional-access-policies/README.md#contents) | Microsoft Entra ID | Deployed 4 Conditional Access policies (MFA enforcement, legacy auth block, admin role protection, risk-based sign-in) with break-glass SOP; validated with a What If test matrix and sign-in logs, uncovering two policies that showed "On" while protecting nothing (a missing scope setting and a lapsed P2 license) |
 | 03 | Entra RBAC & PIM *(planned)* | Microsoft Entra ID | Designed 5-role RBAC matrix, custom roles, and PIM for JIT privileged access |
 | 04 | Saviynt IGA Onboarding *(planned)* | Saviynt | Configured IGA identity repository, source connectors, and entitlement imports |
 | 05 | Saviynt Access Request Routing *(planned)* | Saviynt | Built and documented full application onboarding workflow |
