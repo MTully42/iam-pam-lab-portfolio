@@ -8,7 +8,7 @@ This lab builds a layered Conditional Access posture in Microsoft Entra ID: a do
 **Tools used:** Microsoft Entra admin center (Conditional Access, Identity Protection, Sign-in logs), Microsoft Authenticator
 **AI-assisted workflow:** Used Claude throughout to plan the policy build sequence, review exclusion lists for misconfigurations before finalizing each policy, validate test results against sign-in logs, and structure this documentation.
 
-**Status:** Modules 1 through 6 complete. All four Conditional Access policies (CA01–CA04) are On; CA01, CA03, and CA04 are verified enforcing against sign-in logs. CA02 is inactive while the tenant is on Entra ID P1 (see Finding 4). Module 7 (consolidated sign-in log analysis) is planned — this repo reflects the tenant's actual current state, not a finished end state.
+**Status:** Modules 1 through 7 complete. All four Conditional Access policies (CA01–CA04) are On; CA01, CA03, and CA04 are verified enforcing against sign-in logs. CA02 is inactive while the tenant is on Entra ID P1 (see Finding 4). Module 7's log review surfaced Finding 5 (retired admin account still active), remediated the same day. This repo reflects the tenant's actual current state, not a finished end state.
 
 ---
 
@@ -211,11 +211,42 @@ All 17 test screenshots (inputs and both result tabs for each test) are in [`06_
 
 ---
 
+### Module 7: Sign-In Logs Analysis
+
+Pulled 30 days of sign-in logs (Download → JSON, interactive and non-interactive, **507 sign-ins**) and parsed each sign-in's per-policy Conditional Access result. The JSON export was used instead of CSV because only the JSON includes `appliedConditionalAccessPolicies`, the per-policy result for every sign-in. The raw export contains IP addresses and locations and stays off GitHub. The sanitized dataset and summary are in [`Lab02_CA_Policy_Matrix.xlsx`](./Lab02_CA_Policy_Matrix.xlsx).
+
+| Policy | Evaluated | Success | Not applied | Report-only | What the logs show |
+|---|---|---|---|---|---|
+| CA01 Require MFA | 482 | 482 | 0 | – | Applied to every evaluated sign-in. The only CA failures in the period were three MFA prompts not completed on 2026-11-03. |
+| CA02 Risk-based | 482 | 0 | 482 | – | Never applied once (no P2 risk signal). Confirms Finding 4. |
+| CA03 Legacy auth | 482 | 0 | 410 | 72 not applied | No legacy-auth traffic at all, so there was nothing to block. Briefly in Report-only 2026-11-03 23:06 → 11-04 02:27 UTC, then back On. |
+| CA04 Admin roles | 482 | 141 | 14 | 327 success | Report-only until 2026-11-04 17:54 UTC, then enforced. Never matched the standard user. **Matched the retired personal admin account → Finding 5.** |
+
+25 sign-ins were never evaluated by Conditional Access: wrong passwords, a disabled Microsoft service (error 500014), and MFA security-info registration. CA cannot run on a sign-in that fails before authentication completes, so none of these is a bypass.
+
+**Limits, stated plainly:** there were no lab sign-ins between 2026-10-05 and 2026-11-03, so the planned CA03 before/after comparison isn't possible from logs, and CA03's effectiveness rests on Module 6 Test 2. The three Nov 3 "Interrupted" sign-ins in 07-1 don't appear in the JSON download; the screenshots are the evidence for them.
+
+**Evidence:**
+
+![Sign-in logs filtered to Conditional Access failures, last month: three failures, all 2026-11-03](./07_signin_logs_analysis/07-1_signin_logs_ca_failure_filter.png)
+
+![Retired personal admin, 21:07: CA01 matched, MFA required, not completed](./07_signin_logs_analysis/07-2a_ca01_failure_policy_detail.png)
+
+![Retired personal admin, 21:14: same correlation ID, second attempt](./07_signin_logs_analysis/07-2b_basic_info.png)
+
+![New cloud admin's first sign-in, 21:34: sent to MFA registration; display name identical to retired account](./07_signin_logs_analysis/07-2c_basic_info.png)
+
+All eleven screenshots (seven log evidence, four remediation) are in [`07_signin_logs_analysis/`](./07_signin_logs_analysis/). Finding 5 writeup: [`retired-personal-admin-still-active.md`](./07_signin_logs_analysis/retired-personal-admin-still-active.md) ([.docx version](./07_signin_logs_analysis/retired-personal-admin-still-active.docx)).
+
+**Skill demonstrated:** Turning raw sign-in telemetry into a per-policy effectiveness summary, separating "the control worked" from "the control had nothing to act on," stating data gaps instead of overstating results, and finding a lifecycle gap that no configuration screen showed.
+
+---
+
 ## Findings Report — NIST 800-53 Control Mapping
 
 **Environment:** iampamprointheknow42gmail.onmicrosoft.com (Entra ID tenant)
 **Scope:** Conditional Access — MFA enforcement, risk-based sign-in, legacy authentication block, break-glass SOP
-**Date:** August 25, 2026 (Finding 3 added November 3, 2026; Finding 4 added November 4, 2026)
+**Date:** August 25, 2026 (Finding 3 added November 3, 2026; Finding 4 added November 4, 2026; Finding 5 added November 5, 2026)
 
 ---
 
@@ -243,6 +274,12 @@ Both break-glass emergency access accounts have a Microsoft Authenticator method
 
 `CA02 - Risk_Based Sign-In Block` relies on ID Protection sign-in risk, which requires Entra ID P2. After the P2 trial ended, CA02 continued to show On but could no longer evaluate sign-in risk: What If offers no risk field, and the policy's sign-in log evaluation shows no sign-in risk condition. A licensing change disabled a security control with no change to the control and no warning on the policy. Two design issues were also noted: the policy is named "Block" but grants Require MFA, and without sign-in frequency "Every time" it adds no challenge to a session that already completed MFA under CA01. P2 was not restored for the lab; CA02 was validated with P2 in Module 5. Full writeup: [`ca02-risk-policy-inactive-without-p2.md`](./06_policy_testing_validation/ca02-risk-policy-inactive-without-p2.md).
 
+**Finding 5 — Retired personal Global Admin account still active and signing in**
+*Control: NIST 800-53 AC-2 (Account Management), AC-6(5) (Privileged Accounts), IA-2(1) (MFA for Privileged Accounts)*
+*Risk Rating: High (MFA still enforced; no misuse observed)*
+
+The original personal (Gmail) Global Admin was replaced by a native cloud admin on 2026-11-03 but never disabled. Sign-in logs show it signing into the Azure portal successfully about 20 minutes later. CA04, which is scoped only to admin roles, evaluated it, which proves it still holds an admin role. MFA through CA01 and CA04 is the only barrier between that unmonitored consumer account and full tenant control. Both admin accounts also share the display name "Mike Tully," so they look identical in log views. Remediated 2026-11-05: Global Admin removed, account disabled, sessions revoked, verified on the account page (Assigned roles 0, Disabled). During the fix, the duplicate display name nearly caused the role to be removed from the wrong account, so the UPN was confirmed first. Full writeup: [`retired-personal-admin-still-active.md`](./07_signin_logs_analysis/retired-personal-admin-still-active.md).
+
 ---
 
 ## Skills Summary
@@ -254,11 +291,12 @@ Both break-glass emergency access accounts have a Microsoft Authenticator method
 | Identity Protection | Sign-in risk conditions, security-defaults-to-custom-CA migration |
 | Quality Assurance | Caught and remediated a real privileged-access misconfiguration on two separate policies through disciplined exclusion-list review; audited a deployed policy and found it enforced nothing |
 | Validation | What If test matrix across all four policies (one variable per test), confirmed with real sign-ins; per-policy sign-in log evaluation details (substituted for the Insights workbook, which requires Log Analytics not yet configured) |
-| Compliance | NIST 800-53 control mapping across four findings (three substantive, one informational/documented trade-off) |
+| Log Analysis | 30-day sign-in export parsed per policy (507 sign-ins); policy matrix with live COUNTIF formulas over a sanitized dataset; found an account-lifecycle gap from telemetry |
+| Compliance | NIST 800-53 control mapping across five findings (four substantive, one informational/documented trade-off) |
 | AI-augmented workflow | Used Claude for policy build guidance, exclusion-list review, test validation, and documentation throughout |
 
 ---
 
 ## Notes
 
-This is a working lab in an active trial tenant — screenshots reflect the actual build process, including the admin-exclusion misconfiguration found and fixed on two separate policies, and the Insights-workbook-to-Sign-in-logs substitution made when the planned validation path wasn't available. Left them in deliberately: catching your own mistakes before they ship, and knowing when a documented substitute approach is valid, is part of the job. Module 3 adds a second lesson: a Report-only test where the policy doesn't appear in the results at all is a failed test, not a clean one. Every remaining module now requires the policy to show up in sign-in evaluation results before it counts as verified. Module 6 found a second policy that showed On while protecting nothing — this time because of a license lapse, not a configuration error. Module 7 is next.
+This is a working lab in an active trial tenant — screenshots reflect the actual build process, including the admin-exclusion misconfiguration found and fixed on two separate policies, and the Insights-workbook-to-Sign-in-logs substitution made when the planned validation path wasn't available. Left them in deliberately: catching your own mistakes before they ship, and knowing when a documented substitute approach is valid, is part of the job. Module 3 adds a second lesson: a Report-only test where the policy doesn't appear in the results at all is a failed test, not a clean one. Every remaining module now requires the policy to show up in sign-in evaluation results before it counts as verified. Module 6 found a second policy that showed On while protecting nothing — this time because of a license lapse, not a configuration error. Module 7 showed the same lesson from the account side: an admin account I considered retired was still signing in, and only the logs said so.
