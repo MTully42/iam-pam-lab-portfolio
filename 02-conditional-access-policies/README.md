@@ -12,6 +12,28 @@ This lab builds a layered Conditional Access posture in Microsoft Entra ID: a do
 
 ---
 
+## Contents
+
+- [Objective](#objective)
+- [Build Log](#build-log)
+  - [Module 1: Break-Glass Emergency Access Accounts](#module-1-break-glass-emergency-access-accounts)
+  - [Module 2: MFA Enforcement Policy (CA01)](#module-2-mfa-enforcement-policy-ca01)
+  - [Module 3: Legacy Authentication Block (CA03)](#module-3-legacy-authentication-block-ca03)
+  - [Module 4: Admin Role Protection (CA04)](#module-4-admin-role-protection-ca04)
+  - [Module 5: Risk-Based Sign-In Block (CA02)](#module-5-risk-based-sign-in-block-ca02)
+  - [Module 6: Cross-Policy Testing & Validation](#module-6-cross-policy-testing--validation)
+  - [Module 7: Sign-In Logs Analysis](#module-7-sign-in-logs-analysis)
+- [Findings Report — NIST 800-53 Control Mapping](#findings-report--nist-800-53-control-mapping)
+  - [Finding 1 — Standing administrator account excluded from MFA enforcement and risk-based sign-in policies](#finding-1--standing-administrator-account-excluded-from-mfa-enforcement-and-risk-based-sign-in-policies)
+  - [Finding 2 — Break-glass accounts registered with an MFA method](#finding-2--break-glass-accounts-registered-with-an-mfa-method)
+  - [Finding 3 — Legacy authentication block policy showed "On" but enforced nothing](#finding-3--legacy-authentication-block-policy-showed-on-but-enforced-nothing)
+  - [Finding 4 — Risk-based sign-in policy inactive after Entra ID P2 license lapse](#finding-4--risk-based-sign-in-policy-inactive-after-entra-id-p2-license-lapse)
+  - [Finding 5 — Retired personal Global Admin account still active and signing in](#finding-5--retired-personal-global-admin-account-still-active-and-signing-in)
+- [Skills Summary](#skills-summary)
+- [Notes](#notes)
+
+---
+
 ## Objective
 
 Build and document a Conditional Access environment that mirrors what an Identity Access Engineer/Administrator would configure in a real organization — including catching and fixing real misconfigurations along the way, with evidence suitable for technical review and compliance audit.
@@ -39,6 +61,8 @@ Created two cloud-only emergency access accounts (`BreakGlass-Emergency_Access-0
 ![BreakGlass-02 — sign-in log monitoring](./01_breakglass_account/03-2_Breakglass2_signin_logs.png)
 
 **Skill demonstrated:** Emergency access account design that survives the failure of the very control it's meant to bypass — permanent (not JIT) assignment, CA-exclusion by design, and monitored via sign-in logs.
+
+[↑ Back to contents](#contents)
 
 **Design note:** Both break-glass accounts have an Authenticator method registered. This is a deliberate defense-in-depth choice, not an oversight — but it's worth being explicit about the trade-off: classic break-glass guidance keeps these accounts MFA-free specifically so they still work if the MFA provider itself is down. Registering a method adds a layer of protection against credential-only compromise, at the cost of depending on Authenticator availability during a true emergency. Documenting the reasoning here rather than leaving it silent.
 
@@ -74,6 +98,8 @@ Testing was done against a non-privileged test account (`alyssa.morgan@...`) rat
 
 **Skill demonstrated:** Catching a real policy misconfiguration through disciplined pre-finalization review, not luck; end-to-end validation using report-only mode → live sign-in log evidence → live enforcement test, rather than assuming a saved policy works as intended.
 
+[↑ Back to contents](#contents)
+
 ---
 
 ### Module 3: Legacy Authentication Block (CA03)
@@ -101,6 +127,8 @@ The August build evidence had already captured the problem. The creation screens
 All 15 screenshots, plus the original August build evidence, are in [`03_legacy_auth_block_policy/`](./03_legacy_auth_block_policy/).
 
 **Skill demonstrated:** Auditing a deployed control instead of trusting its status column; using per-policy evaluation details in sign-in logs to prove *why* a policy did or didn't apply; staging a fix through Report-only before enforcement; and owning a missed test result in the original build.
+
+[↑ Back to contents](#contents)
 
 ---
 
@@ -140,6 +168,8 @@ All screenshots are in [`04_admin_role_protection_policy/`](./04_admin_role_prot
 
 **Skill demonstrated:** Scoping a policy to privileged directory roles rather than named users; adapting a build plan to what the environment can actually enforce instead of deploying an unsatisfiable control; validating with per-policy evaluation detail before enforcement; and recognizing a portal default that would have reintroduced a known finding.
 
+[↑ Back to contents](#contents)
+
 ---
 
 ### Module 5: Risk-Based Sign-In Block (CA02)
@@ -165,6 +195,8 @@ Built `CA02 - Risk_Based Sign-In Block`, requiring Entra ID P2 (Identity Protect
 ![CA02 update confirmed successful, admin exclusion removed](./05_risk_based_signin_policy/04-2_CA02_Policy_Success.png)
 
 **Skill demonstrated:** Understanding the security-defaults-vs-Conditional-Access relationship in Entra ID (not just clicking through an error); applying the same exclusion-review discipline consistently across multiple policies rather than treating the Module 2 finding as a one-off.
+
+[↑ Back to contents](#contents)
 
 **Status update (2026-11-04):** CA02 depends on Microsoft Entra ID Protection sign-in risk, a P2 feature. After the P2 trial ended and the tenant moved to P1, CA02 still shows On but cannot evaluate sign-in risk. See Module 6 and Finding 4.
 
@@ -209,6 +241,8 @@ All 17 test screenshots (inputs and both result tabs for each test) are in [`06_
 
 **Skill demonstrated:** Designing a controlled test matrix (one variable per test) that proves each policy applies to who it should *and* skips who it shouldn't; confirming simulation results with a real sign-in; and treating a test that couldn't run as evidence to investigate rather than a step to skip.
 
+[↑ Back to contents](#contents)
+
 ---
 
 ### Module 7: Sign-In Logs Analysis
@@ -240,6 +274,8 @@ All eleven screenshots (seven log evidence, four remediation) are in [`07_signin
 
 **Skill demonstrated:** Turning raw sign-in telemetry into a per-policy effectiveness summary, separating "the control worked" from "the control had nothing to act on," stating data gaps instead of overstating results, and finding a lifecycle gap that no configuration screen showed.
 
+[↑ Back to contents](#contents)
+
 ---
 
 ## Findings Report — NIST 800-53 Control Mapping
@@ -250,31 +286,31 @@ All eleven screenshots (seven log evidence, four remediation) are in [`07_signin
 
 ---
 
-**Finding 1 — Standing administrator account excluded from MFA enforcement and risk-based sign-in policies**
+### Finding 1 — Standing administrator account excluded from MFA enforcement and risk-based sign-in policies
 *Control: NIST 800-53 IA-2 (Identification and Authentication), AC-6 (Least Privilege)*
 *Risk Rating: High (lab/dev tenant; would be Critical in production if left unaddressed past initial build)*
 
 The tenant's primary Global Administrator account was found in the exclusion list of both `CA01 - Require MFA All Users` and `CA02 - Risk_Based Sign-In Block`, a result of the Entra portal's default "don't lock yourself out" suggestion during policy creation. Left in place, this would have meant the tenant's highest-privilege identity was permanently exempt from the two controls meant to protect it. Caught during pre-finalization review on both policies; the admin exclusion was removed from both, leaving only the two dedicated, monitored break-glass accounts excluded. Full technical writeup, business impact, and remediation steps: [`standing-admin-excluded-from-ca-mfa-policy.md`](./02_mfa_enforcement_policy/standing-admin-excluded-from-ca-mfa-policy.md).
 
-**Finding 2 — Break-glass accounts registered with an MFA method**
+### Finding 2 — Break-glass accounts registered with an MFA method
 *Control: NIST 800-53 IA-5 (Authenticator Management), CP-9 (System Backup — access continuity)*
 *Risk Rating: Informational*
 
 Both break-glass emergency access accounts have a Microsoft Authenticator method registered. This is a defense-in-depth design choice worth documenting explicitly rather than leaving implicit: it protects against credential-only compromise of the break-glass accounts, but introduces a dependency on Authenticator availability during the exact kind of outage break-glass accounts exist to survive. No change made in this pass; flagged for a deliberate decision (keep as-is with documented rationale, or remove the MFA method and rely on credential strength + monitoring alone) in a future review.
 
-**Finding 3 — Legacy authentication block policy showed "On" but enforced nothing**
+### Finding 3 — Legacy authentication block policy showed "On" but enforced nothing
 *Control: NIST 800-53 IA-2 (Identification and Authentication), CM-6 (Configuration Settings), CA-7 (Continuous Monitoring)*
 *Risk Rating: High*
 
 `CA03 - Block Legacy Authentication` was deployed with no target resources, so it matched no sign-ins and left legacy-protocol access (which can't perform MFA) unblocked from 2026-08-31 to 2026-11-03 while reporting a state of On. The defect was visible in the original build screenshot and in a Report-only test result that was misread at the time. Found during a configuration audit, confirmed in sign-in log evaluation details, remediated through Report-only, verified with a fresh sign-in, and re-enforced the same day. Full technical writeup, business impact, and remediation steps: [`ca03-legacy-auth-policy-enforced-nothing.md`](./03_legacy_auth_block_policy/ca03-legacy-auth-policy-enforced-nothing.md).
 
-**Finding 4 — Risk-based sign-in policy inactive after Entra ID P2 license lapse**
+### Finding 4 — Risk-based sign-in policy inactive after Entra ID P2 license lapse
 *Control: NIST 800-53 SI-4 (System Monitoring), CA-7 (Continuous Monitoring), CM-3 (Configuration Change Control)*
 *Risk Rating: Medium (compensated by CA01's universal MFA requirement; would be High in a tenant without it)*
 
 `CA02 - Risk_Based Sign-In Block` relies on ID Protection sign-in risk, which requires Entra ID P2. After the P2 trial ended, CA02 continued to show On but could no longer evaluate sign-in risk: What If offers no risk field, and the policy's sign-in log evaluation shows no sign-in risk condition. A licensing change disabled a security control with no change to the control and no warning on the policy. Two design issues were also noted: the policy is named "Block" but grants Require MFA, and without sign-in frequency "Every time" it adds no challenge to a session that already completed MFA under CA01. P2 was not restored for the lab; CA02 was validated with P2 in Module 5. Full writeup: [`ca02-risk-policy-inactive-without-p2.md`](./06_policy_testing_validation/ca02-risk-policy-inactive-without-p2.md).
 
-**Finding 5 — Retired personal Global Admin account still active and signing in**
+### Finding 5 — Retired personal Global Admin account still active and signing in
 *Control: NIST 800-53 AC-2 (Account Management), AC-6(5) (Privileged Accounts), IA-2(1) (MFA for Privileged Accounts)*
 *Risk Rating: High (MFA still enforced; no misuse observed)*
 
