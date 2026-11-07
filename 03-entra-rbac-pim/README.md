@@ -44,7 +44,7 @@ Show that a documented least-privilege role design is implemented as written, sc
 
 | Module | Topic | Status |
 |---|---|---|
-| 01 | Role assignment baseline and drift check | In progress |
+| 01 | Role assignment baseline and drift check | Complete |
 | 02 | Administrative Unit for HR-scoped User Admin | Planned |
 | 03 | Role-assignable groups | Planned |
 | 04 | Remaining matrix role assignments | Planned |
@@ -58,7 +58,39 @@ Show that a documented least-privilege role design is implemented as written, sc
 
 ### Module 01: Role Assignment Baseline
 
-*In progress.*
+**Goal:** Before building anything, check what is actually assigned in the tenant today and compare it to the [Lab 01 RBAC matrix](../01-entra-id-hybrid-identity/Lab01_RBAC_Matrix.xlsx).
+
+**Plain-English summary:** The org chart said ten people should each have their own set of keys. In reality, only the three master-key holders have any keys at all. The "check out the master key only when needed" system from Lab 01 quietly disappeared when a license ran out, so the day-to-day admin now carries the master key permanently. And the one custom key that was built doesn't open the doors its paperwork says it does.
+
+**What was checked and what was found:**
+
+| Check | Expected (per Lab 01) | Actual (2026-11-06) |
+|---|---|---|
+| Audit log, RoleManagement, 30 days | Recent role changes visible | Preview view: **no results**. Classic view: 2 events (role add 11/3, role removal 11/5) |
+| Global Administrator holders | 2 break-glass (permanent) + admin via PIM JIT | 2 break-glass + `mtully.admin`, **all permanent, no PIM** |
+| Tenant-wide role assignment export | 10 matrix roles in use | **3 assignments total, all Global Admin** |
+| IT Manager custom role | Assigned (PIM eligible); resets passwords, manages groups, views audit logs | **0 assignments**; only permission is updating group membership |
+| PIM eligible / expired assignments | Global Admin + IT Manager eligible | **None, and no expired records.** PIM now shows "requires P2" |
+
+**Evidence:**
+
+![Preview audit view returns no results for role changes](./01_role_assignment_baseline/01-1a_audit_rolemanagement_30d_preview_no_results.png)
+
+![Classic audit view shows the same two role changes the preview missed](./01_role_assignment_baseline/01-1b_audit_rolemanagement_30d_classic_2_events.png)
+
+![Global Administrator: 3 assignments](./01_role_assignment_baseline/02-1_global_admin_count_3.png)
+
+![Global Administrator holders: two break-glass accounts and mtully.admin, all permanent](./01_role_assignment_baseline/02-2_global_admin_assignments_3_users.png)
+
+![IT Manager Role: no assignments](./01_role_assignment_baseline/03-1_it_manager_assignments_none.png)
+
+![IT Manager Role: description claims audit log access; only permission is group membership update](./01_role_assignment_baseline/03-2_it_manager_description_permissions.png)
+
+![PIM: eligible assignments gone, P2 required banner](./01_role_assignment_baseline/04-1_pim_eligible_none_p2_required.png)
+
+![PIM: no expired assignment records either](./01_role_assignment_baseline/04-2_pim_expired_none.png)
+
+**Skills demonstrated:** Privileged access review, design-vs-implementation drift analysis, cross-checking audit tooling instead of trusting an empty result, license-dependency risk analysis.
 
 ### Module 02: Administrative Unit for HR
 
@@ -88,7 +120,27 @@ Show that a documented least-privilege role design is implemented as written, sc
 
 ## Findings Report — NIST 800-53 Control Mapping
 
-*Findings will be added as modules are completed.*
+**Environment:** iampamprointheknow42gmail.onmicrosoft.com (Entra ID P1 trial)
+
+**Finding 1 — Just-in-time admin access silently removed when the P2 license lapsed** *(High)*
+*Control: NIST 800-53 AC-6 (Least Privilege), AC-2 (Account Management)*
+
+Lab 01 configured PIM so Global Administrator and the IT Manager role required activation with MFA and justification. After the Entra ID P2 trial lapsed, all eligible assignments were removed, with no expired-assignment record in PIM and no RoleManagement audit event in the 30-day window. The daily admin account now holds Global Administrator permanently. Lab 01's Finding 1 ("standing privileged access replaced with JIT activation") no longer reflects the tenant. Compensating controls in place: CA04 (MFA + 4-hour sign-in frequency for admin roles) and two excluded break-glass accounts. Detail in [Module 06](#module-06-pim-license-gap).
+
+**Finding 2 — RBAC matrix designed but not implemented: 1 of 10 roles in use** *(Medium)*
+*Control: NIST 800-53 AC-2, AC-5 (Separation of Duties)*
+
+A tenant-wide role assignment export returned three assignments, all Global Administrator. None of the nine delegated roles in the Lab 01 matrix (Helpdesk, Cloud App, Reports Reader, Billing, HR-scoped User Admin, Groups, License, IT Manager) has a holder. Without delegated roles, any admin task requires Global Administrator, which defeats the least-privilege design. Remediated in Modules 02–04.
+
+**Finding 3 — IT Manager custom role does not match its documentation** *(Medium)*
+*Control: NIST 800-53 AC-6(1) (Authorize Access to Security Functions)*
+
+The Lab 01 README and matrix state the role resets passwords, manages group membership, and views audit logs. The role's own description says it manages groups and views audit logs but not passwords. Its only actual permission is updating group membership. Password reset was intentionally moved to Helpdesk Administrator during Lab 01, but the documentation was never updated. Access decisions made from the documentation would be wrong. Corrected in Module 04.
+
+**Finding 4 — Preview audit log view returned no results for real role changes** *(Low)*
+*Control: NIST 800-53 AU-6 (Audit Record Review, Analysis, and Reporting)*
+
+With Category = RoleManagement and Date = Last 1 month, the default (preview) audit log experience returned "No results." The classic view, with identical filters, returned two role changes from the same week. A reviewer relying on the default view would conclude no privileged role changes occurred. Mitigation: verify empty audit results against a second view or an export before recording "no activity."
 
 ---
 
