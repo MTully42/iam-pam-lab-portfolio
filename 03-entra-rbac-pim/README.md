@@ -46,7 +46,7 @@ Show that a documented least-privilege role design is implemented as written, sc
 |---|---|---|
 | 01 | Role assignment baseline and drift check | Complete |
 | 02 | Administrative Unit for HR-scoped User Admin | Complete |
-| 03 | Role-assignable groups | Planned |
+| 03 | Role-assignable groups | Complete |
 | 04 | Remaining matrix role assignments | Planned |
 | 05 | Least-privilege negative testing | Planned |
 | 06 | PIM license gap and compensating controls | Planned |
@@ -111,7 +111,7 @@ Show that a documented least-privilege role design is implemented as written, sc
 - Dynamic membership ties the admin boundary to the HR attribute, so joiner/mover/leaver changes update the scope with no ticket. The tradeoff: whoever can edit a user's `department` attribute can move that user into or out of HR's control. That attribute is now security-relevant.
 - The delegated admin (Alyssa, department Sales) is outside the AU, so she cannot use this role on her own account.
 - **Lab shortcut, stated openly:** in production this role would go to an HR staff member. Alyssa was used because her MFA registration already existed, which avoided registering a new test user against CA01.
-- The matrix specifies group-based assignment; this is a direct assignment. Converting it to a role-assignable group is [Module 03](#module-03-role-assignable-groups).
+- The matrix specifies group-based assignment; this module used a direct assignment, which was converted to a role-assignable group in [Module 03](#module-03-role-assignable-groups).
 
 **Evidence:**
 
@@ -135,7 +135,42 @@ Show that a documented least-privilege role design is implemented as written, sc
 
 ### Module 03: Role-Assignable Groups
 
-*Planned.*
+**Goal:** Implement the matrix's "Group-based" assignment method. Move the HR User Administrator role from Alyssa personally to a group, so access follows group membership instead of individual grants.
+
+**Plain-English summary:** Instead of handing the HR key to a person, we attached it to a job badge. Whoever wears the "HR User Admins" badge gets the key; take the badge back and the key goes with it. Because this badge carries an admin key, it's a locked-down type: it has no owners, people can only be added by hand (never by a rule), and only top-level admins can change who's in it. Ordinary department groups can't carry admin keys at all.
+
+**What was built:**
+
+| Item | Setting |
+|---|---|
+| Group | `RG-HR-UserAdmins`, Security, **role-assignable: Yes** (permanent once set) |
+| Membership | **Assigned** (forced; role-assignable groups can't be dynamic) |
+| Owners | **None.** An owner could add members and grant themselves the role |
+| Members | Alyssa Morgan |
+| Role assignment | **User Administrator** at scope **AU-HR-Managed-Users**, assigned to the group |
+| Direct assignment | Alyssa's direct assignment from Module 02 **removed** |
+
+**Why role-assignable groups matter:** If an admin role could be assigned to an ordinary group, anyone who manages that group (an owner, a Groups Administrator, or a dynamic rule fed by an editable attribute) could grant admin rights without touching role management. Entra closes that path: only groups flagged role-assignable at creation can hold roles, their membership can only be changed by Privileged Role Administrators or Global Administrators, and they can't use dynamic membership. The role picker confirmed it: searching for the Lab 01 department group `SG-HR` returned **0 results**, with the note "Only groups eligible for role assignment are displayed."
+
+**Evidence:**
+
+![Before: only the four Lab 01 department groups exist](./03_role_assignable_groups/00-1_groups_before_4_lab01_groups.png)
+
+![New group: role-assignable on, membership locked to Assigned, no owners](./03_role_assignable_groups/01-1_new_group_role_assignable_yes_assigned_no_owners.png)
+
+![Group properties: role-assignable Yes, greyed out (cannot be changed)](./03_role_assignable_groups/02-1_group_properties_role_assignable_yes_locked.png)
+
+![Role picker: SG-HR returns 0 results; only role-eligible groups are displayed](./03_role_assignable_groups/03-1_picker_sg_hr_0_results_users_tab.png)
+
+![User Administrator at AU scope: group added alongside Alyssa's direct assignment](./03_role_assignable_groups/03-2_user_admin_assigned_group_and_alyssa_direct.png)
+
+![Alyssa's direct assignment removed](./03_role_assignable_groups/04-1_alyssa_direct_assignment_removed.png)
+
+![Only the group holds the role](./03_role_assignable_groups/04-2_user_admin_group_only.png)
+
+![Alyssa still holds User Administrator at AU scope, now inherited via RG-HR-UserAdmins](./03_role_assignable_groups/05-1_alyssa_user_admin_inherited_via_group.png)
+
+**Skills demonstrated:** Role-assignable group design, group-based role assignment at AU scope, removing standing direct grants, verifying inherited access from the user side, understanding of group-ownership privilege escalation paths.
 
 ### Module 04: Matrix Role Assignments
 
