@@ -47,7 +47,7 @@ Show that a documented least-privilege role design is implemented as written, sc
 | 01 | Role assignment baseline and drift check | Complete |
 | 02 | Administrative Unit for HR-scoped User Admin | Complete |
 | 03 | Role-assignable groups | Complete |
-| 04 | Remaining matrix role assignments | Planned |
+| 04 | Remaining matrix role assignments | Complete |
 | 05 | Least-privilege negative testing | Planned |
 | 06 | PIM license gap and compensating controls | Planned |
 | 07 | Findings and updated matrix | Planned |
@@ -174,7 +174,65 @@ Show that a documented least-privilege role design is implemented as written, sc
 
 ### Module 04: Matrix Role Assignments
 
-*Planned.*
+**Goal:** Implement the remaining roles from the [Lab 01 RBAC matrix](../01-entra-id-hybrid-identity/Lab01_RBAC_Matrix.xlsx), each through its own role-assignable group, and correct the IT Manager custom role so its description matches its permissions.
+
+**Plain-English summary:** We cut the other six keys from the plan and put each one on its own locked badge, then fixed the label on the custom key so it says exactly what it opens. On Friday the building had three master keys and nothing else. Now every job in the plan has the one key it needs, and the master keys are still limited to three holders.
+
+**What was built:**
+
+| Group | Role | Matrix job title | Member | Scope |
+|---|---|---|---|---|
+| `RG-IT-HelpdeskAdmins` | Helpdesk Administrator | IT Support Specialist | Amanda Price (IT) | Directory |
+| `RG-IT-CloudAppAdmins` | Cloud Application Administrator | Systems/Cloud Admin | Kevin Brooks (IT) | Directory |
+| `RG-IT-Managers` | IT Manager Role (custom) | IT Manager | Daniel Foster (IT) | Directory |
+| `RG-FIN-ReportsReaders` | Reports Reader | Financial Analyst | Brian Kim (Finance) | Directory |
+| `RG-FIN-BillingAdmins` | Billing Administrator | Controller / Finance Director | Trevor Simmons (Finance) | Directory |
+| `RG-HR-GroupsAdmins` | Groups Administrator | HR Director | Stephanie Hayes (HR) | Directory |
+| `RG-SALES-LicenseAdmins` | License Administrator | VP of Sales | Eric Watson (Sales) | Directory |
+| `RG-HR-UserAdmins` *(Module 03)* | User Administrator | HR Generalist | Alyssa Morgan | AU-HR-Managed-Users |
+
+Every group: Security, role-assignable, Assigned membership, **no owners**, one member.
+
+**IT Manager custom role corrected:** the description now reads "Manage membership of security and Microsoft 365 groups (excludes role-assignable groups). Does not reset passwords (Helpdesk Administrator) or read audit logs." Permissions were left unchanged (`microsoft.directory/groups/members/update` only); the role was right, the label was wrong. See [Finding 3](#findings-report--nist-800-53-control-mapping).
+
+**Before and after (tenant-wide role assignment export):**
+
+| | 2026-11-06 (Module 01) | 2026-11-08 (after Module 04) |
+|---|---|---|
+| Total role assignments | 3 | 11 |
+| Global Administrator holders | 3 users | 3 users (unchanged) |
+| Delegated matrix roles in use | 0 of 9 | **9 of 9** |
+| Assigned through role-assignable groups | 0 | **8** |
+| Direct user assignments outside Global Admin | 0 | 0 |
+
+**Where the tenant differs from the matrix (documented, not hidden):**
+- **Helpdesk Administrator** (matrix: "SG-IT group scope") and **License Administrator** (matrix: "SG-Sales group scope") were assigned at directory scope. Neither role can be limited to a group; the options are directory or Administrative Unit. A per-department AU, as built for HR in Module 02, would be the production fix.
+- **Cloud Application Administrator** is flagged **PRIVILEGED** by Microsoft: it can add credentials to application registrations, which is a known escalation path. It is not covered by CA04 (admin MFA + 4-hour sign-in frequency), which targets only Global, Privileged Role, and Security Administrator. Evaluated in [Module 06](#module-06-pim-license-gap).
+- The matrix lists most roles as "PIM eligible." PIM requires Entra ID P2, so all assignments are active. See [Finding 1](#findings-report--nist-800-53-control-mapping).
+
+**Evidence:**
+
+![RG-IT-HelpdeskAdmins: role-assignable, no owners, Helpdesk Administrator](./04_matrix_role_assignments/01-1_rg_it_helpdeskadmins_create.png)
+
+![RG-IT-CloudAppAdmins: Cloud Application Administrator](./04_matrix_role_assignments/02-1_rg_it_cloudappadmins_create.png)
+
+![IT Manager Role description corrected to match its single permission](./04_matrix_role_assignments/03-1_it_manager_description_corrected.png)
+
+![RG-IT-Managers: IT Manager Role (custom)](./04_matrix_role_assignments/03-2_rg_it_managers_create.png)
+
+![RG-FIN-ReportsReaders: Reports Reader](./04_matrix_role_assignments/04-1_rg_fin_reportsreaders_create.png)
+
+![RG-FIN-BillingAdmins: Billing Administrator](./04_matrix_role_assignments/05-1_rg_fin_billingadmins_create.png)
+
+![RG-HR-GroupsAdmins: Groups Administrator](./04_matrix_role_assignments/06-1_rg_hr_groupsadmins_create.png)
+
+![RG-SALES-LicenseAdmins: License Administrator](./04_matrix_role_assignments/07-1_rg_sales_licenseadmins_create.png)
+
+![All 8 role-assignable groups](./04_matrix_role_assignments/08-1_rg_groups_8_found.png)
+
+**What happened:** A group-list check found 7 of 8 groups; `RG-IT-CloudAppAdmins` had not been created (the Create click was missed while moving to the IT Manager fix). It was recreated and the count re-verified at 8, and the tenant-wide export was used as the final check rather than the per-group screens.
+
+**Skills demonstrated:** Translating an access design into implemented, group-based role assignments; custom role maintenance; before/after verification with a tenant-wide export; documenting where a platform can't express the design exactly.
 
 ### Module 05: Least-Privilege Testing
 
@@ -225,3 +283,5 @@ With Category = RoleManagement and Date = Last 1 month, the default (preview) au
 ## Notes
 
 Built on an Entra ID P1 trial. PIM requires Entra ID P2, which was not renewed for this lab; that gap is documented in Module 06 rather than hidden.
+
+**Environment change (2026-11-08):** Admin work moved from a Firefox private window to a dedicated Firefox profile (`IAM-Admin`). Both keep the admin session separate from personal accounts; the profile also keeps portal settings between sessions, which removed repeated sign-ins and theme resets. Screenshots before this date mix light and dark themes for that reason. Because the profile stays signed in, the workstation is locked when unattended and the session is signed out at the end of each lab day.
