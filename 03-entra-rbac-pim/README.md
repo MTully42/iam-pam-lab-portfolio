@@ -45,7 +45,7 @@ Show that a documented least-privilege role design is implemented as written, sc
 | Module | Topic | Status |
 |---|---|---|
 | 01 | Role assignment baseline and drift check | Complete |
-| 02 | Administrative Unit for HR-scoped User Admin | Planned |
+| 02 | Administrative Unit for HR-scoped User Admin | Complete |
 | 03 | Role-assignable groups | Planned |
 | 04 | Remaining matrix role assignments | Planned |
 | 05 | Least-privilege negative testing | Planned |
@@ -94,7 +94,44 @@ Show that a documented least-privilege role design is implemented as written, sc
 
 ### Module 02: Administrative Unit for HR
 
-*Planned.*
+**Goal:** Implement the matrix row "HR Generalist: User Administrator, scoped via Administrative Unit to HR-managed users only," so HR can manage HR accounts without touching IT, Finance, Sales, or admin accounts.
+
+**Plain-English summary:** We built a fence around the HR department and gave one person a key that only works inside it. The fence fills itself: anyone whose department is set to HR is automatically inside, and anyone who transfers out automatically leaves. Nobody can be added by hand, so the fence can't quietly grow.
+
+**What was built:**
+
+| Item | Setting |
+|---|---|
+| Administrative Unit | `AU-HR-Managed-Users`, restricted management **No** |
+| Membership | **Dynamic User**, rule `user.department -eq "HR"` (manual "Add member" disabled) |
+| Members | 8 users, matching the 8 HR users from Lab 01 exactly |
+| Role assignment | **User Administrator**, scope **AU-HR-Managed-Users** (not Directory), assigned to Alyssa Morgan |
+
+**Design notes:**
+- Dynamic membership ties the admin boundary to the HR attribute, so joiner/mover/leaver changes update the scope with no ticket. The tradeoff: whoever can edit a user's `department` attribute can move that user into or out of HR's control. That attribute is now security-relevant.
+- The delegated admin (Alyssa, department Sales) is outside the AU, so she cannot use this role on her own account.
+- **Lab shortcut, stated openly:** in production this role would go to an HR staff member. Alyssa was used because her MFA registration already existed, which avoided registering a new test user against CA01.
+- The matrix specifies group-based assignment; this is a direct assignment. Converting it to a role-assignable group is [Module 03](#module-03-role-assignable-groups).
+
+**Evidence:**
+
+![8 HR users in the directory before building the AU](./02_admin_unit_hr_scope/01-1_hr_users_8_found.png)
+
+![Creating the AU: name, description, restricted management off](./02_admin_unit_hr_scope/02-1_au_create_properties.png)
+
+![AU created](./02_admin_unit_hr_scope/02-2_au_created_success.png)
+
+![Dynamic membership rule: department equals HR](./02_admin_unit_hr_scope/02-3_au_dynamic_rule_department_hr.png)
+
+![AU properties: membership type Dynamic User](./02_admin_unit_hr_scope/02-4_au_properties_dynamic_user.png)
+
+![AU members: the same 8 HR users, manual Add member disabled](./02_admin_unit_hr_scope/03-1_au_members_8_hr_users.png)
+
+![User Administrator assigned to Alyssa Morgan at AU scope](./02_admin_unit_hr_scope/04-1_user_admin_assigned_alyssa_au_scope.png)
+
+![Verified from the user side: User Administrator, resource AU-HR-Managed-Users, direct assignment](./02_admin_unit_hr_scope/05-1_alyssa_assigned_roles_user_admin_au_scope.png)
+
+**Skills demonstrated:** Administrative Unit design, dynamic membership rules, scoped (AU-level) role delegation, verifying an assignment from both the role side and the user side.
 
 ### Module 03: Role-Assignable Groups
 
