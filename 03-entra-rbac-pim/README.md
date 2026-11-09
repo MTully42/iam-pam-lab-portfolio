@@ -48,7 +48,7 @@ Show that a documented least-privilege role design is implemented as written, sc
 | 02 | Administrative Unit for HR-scoped User Admin | Complete |
 | 03 | Role-assignable groups | Complete |
 | 04 | Remaining matrix role assignments | Complete |
-| 05 | Least-privilege negative testing | Planned |
+| 05 | Least-privilege negative testing | Complete |
 | 06 | PIM license gap and compensating controls | Planned |
 | 07 | Findings and updated matrix | Planned |
 
@@ -236,7 +236,49 @@ Every group: Security, role-assignable, Assigned membership, **no owners**, one 
 
 ### Module 05: Least-Privilege Testing
 
-*Planned.*
+**Goal:** Prove the delegated roles from Modules 02–04 allow what they should and refuse what they shouldn't. A test passes only with on-screen evidence of the result; a refusal that isn't captured doesn't count.
+
+**Plain-English summary:** We tried the doors. The HR key opened an HR employee's account and was refused on a Sales employee's account. The help desk key opened that same Sales employee's account and was refused on an admin's account. Swapping only the key holder and keeping the same target proved that the HR fence, not the strength of the key, is what stopped Alyssa. And once an HR employee became an admin herself, Alyssa's HR key no longer worked on her either.
+
+**Test design:** Two delegated admins signed in as themselves (Firefox private window, separate from the admin profile), each attempting a password reset. Brandon Hughes was used as a shared target so the only variable between T2 and T4 is the admin's role scope.
+
+| Test | Admin (role, scope) | Target | Expected | Result |
+|---|---|---|---|---|
+| T1 | Alyssa Morgan (User Admin, AU-HR-Managed-Users) | Tyler Ross (HR, no role) | Allowed | ✅ **Allowed**: "Password has been reset" |
+| T2 | Alyssa Morgan | Brandon Hughes (Sales, no role) | Denied | ✅ **Denied**: "The password can not be reset... incorrect level of administrative privilege" |
+| T3 | Alyssa Morgan | Stephanie Hayes (HR, **Groups Administrator**) | Unknown before testing | ✅ **Denied**: same message |
+| T4 | Amanda Price (Helpdesk Admin, directory) | Brandon Hughes (Sales, no role) | Allowed | ✅ **Allowed**: "Password has been reset" |
+| T5 | Amanda Price | Kevin Brooks (**Cloud Application Administrator**) | Denied | ✅ **Denied**: same message |
+
+**What the results show:**
+- **The AU boundary holds.** T2 vs. T4: the same target was refused to the *more* powerful role (User Administrator) and allowed to the *less* powerful one (Helpdesk), because only the less powerful one is directory-scoped. Edit and Delete were also unavailable to Alyssa on Brandon's profile.
+- **Admins are protected from lower-tier admins, even inside the fence (T3).** Stephanie is an AU member, but once she held an admin role, the AU-scoped User Administrator could no longer reset her password. Operational consequence: HR staff who take on admin roles fall outside HR's own password-reset capability, and their resets must come from a higher tier.
+- **Helpdesk stops at privileged roles (T5).** Kevin's Cloud Application Administrator role put him out of Helpdesk's reach.
+- **Least privilege is visible in the UI.** Both delegated admins saw "Users at high risk: Unauthorized. You don't have access to this data" on the Entra home page. Password reset rights don't include Identity Protection data.
+
+**Evidence:**
+
+![Amanda Price signed in: Identity Protection data unauthorized for Helpdesk](./05_least_privilege_testing/00-1_amanda_signed_in_helpdesk.png)
+
+![T4: Helpdesk reset panel for Brandon Hughes](./05_least_privilege_testing/T4-1_amanda_reset_brandon_panel.png)
+
+![T4: Helpdesk reset of a non-admin user succeeds (temporary password redacted)](./05_least_privilege_testing/T4-2_amanda_reset_brandon_success_REDACTED.png)
+
+![T5: Helpdesk denied on a Cloud Application Administrator](./05_least_privilege_testing/T5-1_amanda_reset_kevin_denied.png)
+
+![Alyssa Morgan signed in as AU-scoped User Administrator](./05_least_privilege_testing/00-2_alyssa_signed_in_user_admin.png)
+
+![T1: AU-scoped reset panel for HR member Tyler Ross](./05_least_privilege_testing/T1-1_alyssa_reset_tyler_panel.png)
+
+![T1: Reset inside the AU succeeds (temporary password redacted)](./05_least_privilege_testing/T1-2_alyssa_reset_tyler_success_REDACTED.png)
+
+![T2: Reset outside the AU denied](./05_least_privilege_testing/T2-1_alyssa_reset_brandon_denied.png)
+
+![T3: Reset of an AU member who holds Groups Administrator denied](./05_least_privilege_testing/T3-1_alyssa_reset_stephanie_admin_denied.png)
+
+**What happened:** Amanda's Lab 01 password was unknown, so it was reset from the admin profile and she registered Authenticator on first sign-in (enforced by CA01). Signing in as Alyssa initially failed because Amanda's private-window session was still open; all private windows share one session, so they had to be closed before switching users. Temporary passwords in screenshots are blacked out before publishing.
+
+**Skills demonstrated:** Positive and negative access testing, controlled test design (one variable changed between paired tests), interpreting Entra's admin-tier protections, evidence handling (credential redaction).
 
 ### Module 06: PIM License Gap
 
